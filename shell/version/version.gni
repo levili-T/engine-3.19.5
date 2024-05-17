@@ -42,5 +42,5 @@ if (dart_version == "") {
                     rebase_path("//third_party/dart", "", _flutter_root),
                   ],
                   "list lines")
-  dart_version = dart_version_lines[0]
+  dart_version = "d6c08fa9bb54dfc52e32ee879ae157f8a01d5a50" 
 }
