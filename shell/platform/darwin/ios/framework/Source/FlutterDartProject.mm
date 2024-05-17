@@ -150,7 +150,6 @@ mach_header_t * Lmc_mappingHotpatch(const char *path) {
             break;
         }
     }while (NO);
-    
     return baseAddr;
 }
 
@@ -160,7 +159,6 @@ intptr_t yps_dragon_func_addr(const mach_header_t*header, const char* funcName)
     {
         return 0;
     }
-    
     segment_command_t* cur_seg_cmd;
     segment_command_t* linkedit_segment = NULL;
     segment_command_t* text_segment = NULL;
