@@ -33,7 +33,4 @@ DART_SDK_DIR="${SRC_DIR}/third_party/dart/tools/sdks/dart-sdk"
 DART="${DART_SDK_DIR}/bin/dart"
 
 cd "$SCRIPT_DIR"
-"$DART" \
-  --disable-dart-dev \
-  bin/format.dart \
-  "$@"
+
