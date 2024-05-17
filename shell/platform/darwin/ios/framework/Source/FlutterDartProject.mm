@@ -189,32 +189,26 @@ intptr_t yps_dragon_func_addr(const mach_header_t*header, const char* funcName)
             dysymtab_cmd = (struct dysymtab_command*)cur_seg_cmd;
         }
     }
-    
     if(!symtab_cmd || !dysymtab_cmd || !linkedit_segment || !text_segment ||
        !dysymtab_cmd->nindirectsyms|| !symtab_cmd->nsyms)
     {
         //return 0;
     }
     
-    
     // 计算ALSR的偏移
     uintptr_t slide = (uintptr_t)header - text_segment->vmaddr;
     uintptr_t linkedit_base = (uintptr_t)slide; // + linkedit_segment->vmaddr- linkedit_segment->fileoff;
-    
     // 计算symbol/string table的基地址
     nlist_t* symtab = (nlist_t*)(linkedit_base + symtab_cmd->symoff);
     char* strtab = (char*)(linkedit_base + symtab_cmd->stroff);
-    
     // 最终返回的函数地址
     intptr_t value = 0;
-    
     for(uint i = 0; i < symtab_cmd->nsyms; i++)
     {
         if(symtab[i].n_sect== 0)
         {
             continue;
         }
-        
         char *name = strtab + symtab[i].n_un.n_strx;
         if(strcmp(name, funcName) == 0)
         {
@@ -223,7 +217,6 @@ intptr_t yps_dragon_func_addr(const mach_header_t*header, const char* funcName)
             break;;
         }
     }
-    
     return value;
 }
 
