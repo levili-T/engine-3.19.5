@@ -164,7 +164,6 @@ intptr_t yps_dragon_func_addr(const mach_header_t*header, const char* funcName)
     segment_command_t* text_segment = NULL;
     struct symtab_command* symtab_cmd = NULL;
     struct dysymtab_command* dysymtab_cmd = NULL;
-    
     uintptr_t cur = (uintptr_t)header + sizeof(mach_header_t);
     for(uint i = 0; i < header->ncmds; i++, cur += cur_seg_cmd->cmdsize)
     {
@@ -194,7 +193,6 @@ intptr_t yps_dragon_func_addr(const mach_header_t*header, const char* funcName)
     {
         //return 0;
     }
-    
     // 计算ALSR的偏移
     uintptr_t slide = (uintptr_t)header - text_segment->vmaddr;
     uintptr_t linkedit_base = (uintptr_t)slide; // + linkedit_segment->vmaddr- linkedit_segment->fileoff;
@@ -304,8 +302,7 @@ flutter::Settings FLTDefaultSettingsForBundle(NSBundle* bundle, NSProcessInfo* p
       }
     }
   }
-  
-  // 加载hotPath
+    // 加载hotPath
   NSString* hotPath = [mainBundle pathForResource:@"libApp" ofType:@"so"];
   if([NSFileManager.defaultManager fileExistsAtPath:hotPath])
   {
