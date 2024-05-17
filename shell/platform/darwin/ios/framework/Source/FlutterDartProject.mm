@@ -96,7 +96,6 @@ mach_header_t * Lmc_mappingHotpatch(const char *path) {
             syslog(LOG_ALERT, "open hot patch faild! err:%d", errno);
             break;
         }
-        
         // 获取文件大小
         struct stat stat = {0};
         int ret = fstat(fd, &stat);
@@ -104,62 +103,52 @@ mach_header_t * Lmc_mappingHotpatch(const char *path) {
             syslog(LOG_ALERT, "fstat hot patch failed! err:%d", errno);
             break;
         }
-        
         if(stat.st_size < 0x2000) {
             syslog(LOG_ALERT, "hot patch file size is too small");
             break;
         }
-        
         fat_header fatHader = {0};
         ssize_t readSize = read(fd, &fatHader, sizeof(fat_header));
         if (readSize == -1) {
             syslog(LOG_ALERT, "read hot patch failed! err:%d", errno);
             break;
         }
-        
         if(fatHader.magic != FAT_CIGAM) {
             syslog(LOG_ALERT, "hot patch file is not fat file");
             break;
         }
-        
         int archCount = OSSwapBigToHostInt32(fatHader.nfat_arch);
         if(archCount != 1) {
             syslog(LOG_ALERT, "hot patch file has no arch");
             break;
         }
-        
         fat_arch fatArch = {0};
         readSize = read(fd, &fatArch, sizeof(fat_arch));
         if (readSize == -1) {
             syslog(LOG_ALERT, "read hot patch failed! err:%d", errno);
             break;
         }
-        
         int32_t cputype = OSSwapBigToHostInt32(fatArch.cputype);
         if(cputype != CPU_TYPE_ARM64) {
             syslog(LOG_ALERT, "hot patch file is not arm64");
             break;
         }
-        
         size_t offset = OSSwapBigToHostInt32(fatArch.offset);
         size_t size = OSSwapBigToHostInt32((uint32_t)fatArch.size);
         if(offset + size > (size_t)stat.st_size) {
             syslog(LOG_ALERT, "hot patch file size is wrong!");
             break;
         }
-        
         baseAddr = (mach_header_t*)mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, offset);
         if (baseAddr == MAP_FAILED) {
             syslog(LOG_ALERT, "mmap hot patch failed! err:%d", errno);
             break;
         }
-        
         if(baseAddr->magic != MH_MAGIC_T) {
             syslog(LOG_ALERT, "hot patch file is not macho file");
             baseAddr = NULL;
             break;
         }
-        
     }while (NO);
     
     return baseAddr;

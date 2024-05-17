@@ -74,7 +74,6 @@ static std::shared_ptr<const fml::Mapping> SearchMapping(
       return file_mapping;
     }
   }
-    
   if(settings.kDartVmSnapshotDataPtr != 0 && settings.kDartVmSnapshotInstructionsPtr != 0 && settings.kDartIsolateSnapshotDataPtr != 0 && settings.kDartIsolateSnapshotInstructionsPtr != 0) {
       if (native_library_symbol_name == DartSnapshot::kIsolateDataSymbol) {
           return std::make_unique<const fml::NonOwnedMapping>((uint8_t*)settings.kDartIsolateSnapshotDataPtr, 0,
