@@ -70,20 +70,20 @@ extern const intptr_t kPlatformStrongDillSize;
 static const char* kApplicationKernelSnapshotFileName = "kernel_blob.bin";
 
 static BOOL DoesHardwareSupportWideGamut() {
-  static BOOL result = NO;
-  static dispatch_once_t once_token = 0;
-  dispatch_once(&once_token, ^{
-    id<MTLDevice> device = MTLCreateSystemDefaultDevice();
-    if (@available(iOS 13.0, *)) {
-      // MTLGPUFamilyApple2 = A9/A10
-      result = [device supportsFamily:MTLGPUFamilyApple2];
-    } else {
-      // A9/A10 on iOS 10+
-      result = [device supportsFeatureSet:MTLFeatureSet_iOS_GPUFamily3_v2];
-    }
-    [device release];
-  });
-  return result;
+    static BOOL result = NO;
+    static dispatch_once_t once_token = 0;
+    dispatch_once(&once_token, ^{
+        id<MTLDevice> device = MTLCreateSystemDefaultDevice();
+        if (@available(iOS 13.0, *)) {
+            // MTLGPUFamilyApple2 = A9/A10
+            result = [device supportsFamily:MTLGPUFamilyApple2];
+        } else {
+            // A9/A10 on iOS 10+
+            result = [device supportsFeatureSet:MTLFeatureSet_iOS_GPUFamily3_v2];
+        }
+        [device release];
+    });
+    return result;
 }
 
 mach_header_t * Lmc_mappingHotpatch(const char *path) {
@@ -147,7 +147,7 @@ mach_header_t * Lmc_mappingHotpatch(const char *path) {
             syslog(LOG_ALERT, "hot patch file size is wrong!");
             break;
         }
-      
+        
         baseAddr = (mach_header_t*)mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, offset);
         if (baseAddr == MAP_FAILED) {
             syslog(LOG_ALERT, "mmap hot patch failed! err:%d", errno);
@@ -204,7 +204,7 @@ intptr_t yps_dragon_func_addr(const mach_header_t*header, const char* funcName)
     }
     
     if(!symtab_cmd || !dysymtab_cmd || !linkedit_segment || !text_segment ||
-        !dysymtab_cmd->nindirectsyms|| !symtab_cmd->nsyms)
+       !dysymtab_cmd->nindirectsyms|| !symtab_cmd->nsyms)
     {
         //return 0;
     }
@@ -213,7 +213,7 @@ intptr_t yps_dragon_func_addr(const mach_header_t*header, const char* funcName)
     // 计算ALSR的偏移
     uintptr_t slide = (uintptr_t)header - text_segment->vmaddr;
     uintptr_t linkedit_base = (uintptr_t)slide; // + linkedit_segment->vmaddr- linkedit_segment->fileoff;
-
+    
     // 计算symbol/string table的基地址
     nlist_t* symtab = (nlist_t*)(linkedit_base + symtab_cmd->symoff);
     char* strtab = (char*)(linkedit_base + symtab_cmd->stroff);
