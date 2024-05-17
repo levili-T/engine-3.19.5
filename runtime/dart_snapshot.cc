@@ -92,8 +92,7 @@ static std::shared_ptr<const fml::Mapping> SearchMapping(
                                                               nullptr, true);
       }
   }
-    
-  // Look in application specified native library if specified.
+    // Look in application specified native library if specified.
   for (const std::string& path : native_library_path) {
     auto native_library = fml::NativeLibrary::Create(path.c_str());
     auto symbol_mapping = std::make_unique<const fml::SymbolMapping>(
