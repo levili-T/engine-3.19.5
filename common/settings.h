@@ -341,6 +341,11 @@ struct Settings {
   ///
   /// This is currently only used by iOS.
   bool enable_embedder_api = false;
+  
+  intptr_t kDartVmSnapshotDataPtr = 0;
+  intptr_t kDartVmSnapshotInstructionsPtr = 0;
+  intptr_t kDartIsolateSnapshotDataPtr = 0;
+  intptr_t kDartIsolateSnapshotInstructionsPtr = 0;
 };
 
 }  // namespace flutter

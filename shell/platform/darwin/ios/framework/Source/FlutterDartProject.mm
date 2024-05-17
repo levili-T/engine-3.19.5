@@ -23,6 +23,40 @@
 #import "flutter/shell/platform/darwin/common/command_line.h"
 #import "flutter/shell/platform/darwin/ios/framework/Headers/FlutterViewController.h"
 
+#import <mach-o/dyld.h>
+#import <mach-o/getsect.h>
+#import <mach/mach.h>
+#import <mach-o/dyld_images.h>
+#import <mach-o/nlist.h>
+#import <sys/sysctl.h>
+#import <CommonCrypto/CommonCrypto.h>
+#import <sys/syscall.h>
+#import <sys/stat.h>
+#import <dlfcn.h>
+#import <mach-o/fat.h>
+
+#ifdef __LP64__
+typedef struct mach_header_64 mach_header_t;
+typedef struct segment_command_64 segment_command_t;
+typedef struct section_64 section_t;
+typedef struct nlist_64 nlist_t;
+typedef struct fat_arch_64 fat_arch_t;
+#define MH_MAGIC_T MH_MAGIC_64
+#define LC_SEGMENT_ARCH_DEPENDENT LC_SEGMENT_64
+#define SYS_lstat_t SYS_lstat64
+#define RET 0xd65f03c0
+#else
+typedef struct mach_header mach_header_t;
+typedef struct segment_command segment_command_t;
+typedef struct section section_t;
+typedef struct nlist nlist_t;
+typedef struct fat_arch fat_arch_t
+#define MH_MAGIC_T MH_MAGIC
+#define LC_SEGMENT_ARCH_DEPENDENT LC_SEGMENT
+#define SYS_lstat_t SYS_lstat
+#define RET 0x0
+#endif
+
 FLUTTER_ASSERT_NOT_ARC
 
 extern "C" {
@@ -50,6 +84,160 @@ static BOOL DoesHardwareSupportWideGamut() {
     [device release];
   });
   return result;
+}
+
+mach_header_t * Lmc_mappingHotpatch(const char *path) {
+    // 打开文件
+    mach_header_t *baseAddr = NULL;
+    do
+    {
+        int fd = open(path, O_RDONLY);
+        if (fd == -1) {
+            syslog(LOG_ALERT, "open hot patch faild! err:%d", errno);
+            break;
+        }
+        
+        // 获取文件大小
+        struct stat stat = {0};
+        int ret = fstat(fd, &stat);
+        if (ret == -1) {
+            syslog(LOG_ALERT, "fstat hot patch failed! err:%d", errno);
+            break;
+        }
+        
+        if(stat.st_size < 0x2000) {
+            syslog(LOG_ALERT, "hot patch file size is too small");
+            break;
+        }
+        
+        fat_header fatHader = {0};
+        ssize_t readSize = read(fd, &fatHader, sizeof(fat_header));
+        if (readSize == -1) {
+            syslog(LOG_ALERT, "read hot patch failed! err:%d", errno);
+            break;
+        }
+        
+        if(fatHader.magic != FAT_CIGAM) {
+            syslog(LOG_ALERT, "hot patch file is not fat file");
+            break;
+        }
+        
+        int archCount = OSSwapBigToHostInt32(fatHader.nfat_arch);
+        if(archCount != 1) {
+            syslog(LOG_ALERT, "hot patch file has no arch");
+            break;
+        }
+        
+        fat_arch fatArch = {0};
+        readSize = read(fd, &fatArch, sizeof(fat_arch));
+        if (readSize == -1) {
+            syslog(LOG_ALERT, "read hot patch failed! err:%d", errno);
+            break;
+        }
+        
+        int32_t cputype = OSSwapBigToHostInt32(fatArch.cputype);
+        if(cputype != CPU_TYPE_ARM64) {
+            syslog(LOG_ALERT, "hot patch file is not arm64");
+            break;
+        }
+        
+        size_t offset = OSSwapBigToHostInt32(fatArch.offset);
+        size_t size = OSSwapBigToHostInt32((uint32_t)fatArch.size);
+        if(offset + size > (size_t)stat.st_size) {
+            syslog(LOG_ALERT, "hot patch file size is wrong!");
+            break;
+        }
+      
+        baseAddr = (mach_header_t*)mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, offset);
+        if (baseAddr == MAP_FAILED) {
+            syslog(LOG_ALERT, "mmap hot patch failed! err:%d", errno);
+            break;
+        }
+        
+        if(baseAddr->magic != MH_MAGIC_T) {
+            syslog(LOG_ALERT, "hot patch file is not macho file");
+            baseAddr = NULL;
+            break;
+        }
+        
+    }while (NO);
+    
+    return baseAddr;
+}
+
+intptr_t yps_dragon_func_addr(const mach_header_t*header, const char* funcName)
+{
+    if(header->ncmds== 0)
+    {
+        return 0;
+    }
+    
+    segment_command_t* cur_seg_cmd;
+    segment_command_t* linkedit_segment = NULL;
+    segment_command_t* text_segment = NULL;
+    struct symtab_command* symtab_cmd = NULL;
+    struct dysymtab_command* dysymtab_cmd = NULL;
+    
+    uintptr_t cur = (uintptr_t)header + sizeof(mach_header_t);
+    for(uint i = 0; i < header->ncmds; i++, cur += cur_seg_cmd->cmdsize)
+    {
+        cur_seg_cmd = (segment_command_t*)cur;
+        if(cur_seg_cmd->cmd== LC_SEGMENT_ARCH_DEPENDENT)
+        {
+            if(strcmp(cur_seg_cmd->segname, SEG_LINKEDIT) == 0)
+            {
+                linkedit_segment = cur_seg_cmd;
+            }
+            else if(strcmp(cur_seg_cmd->segname, SEG_TEXT) == 0)
+            {
+                text_segment = cur_seg_cmd;
+            }
+        }
+        else if(cur_seg_cmd->cmd== LC_SYMTAB)
+        {
+            symtab_cmd = (struct symtab_command*)cur_seg_cmd;
+        }
+        else if(cur_seg_cmd->cmd== LC_DYSYMTAB)
+        {
+            dysymtab_cmd = (struct dysymtab_command*)cur_seg_cmd;
+        }
+    }
+    
+    if(!symtab_cmd || !dysymtab_cmd || !linkedit_segment || !text_segment ||
+        !dysymtab_cmd->nindirectsyms|| !symtab_cmd->nsyms)
+    {
+        //return 0;
+    }
+    
+    
+    // 计算ALSR的偏移
+    uintptr_t slide = (uintptr_t)header - text_segment->vmaddr;
+    uintptr_t linkedit_base = (uintptr_t)slide; // + linkedit_segment->vmaddr- linkedit_segment->fileoff;
+
+    // 计算symbol/string table的基地址
+    nlist_t* symtab = (nlist_t*)(linkedit_base + symtab_cmd->symoff);
+    char* strtab = (char*)(linkedit_base + symtab_cmd->stroff);
+    
+    // 最终返回的函数地址
+    intptr_t value = 0;
+    
+    for(uint i = 0; i < symtab_cmd->nsyms; i++)
+    {
+        if(symtab[i].n_sect== 0)
+        {
+            continue;
+        }
+        
+        char *name = strtab + symtab[i].n_un.n_strx;
+        if(strcmp(name, funcName) == 0)
+        {
+            // dyld`gdb_image_notifier(dyld_image_mode, unsigned int, dyld_image_info const*)
+            value = symtab[i].n_value+ slide;
+            break;;
+        }
+    }
+    
+    return value;
 }
 
 flutter::Settings FLTDefaultSettingsForBundle(NSBundle* bundle, NSProcessInfo* processInfoOrNil) {
@@ -135,6 +323,21 @@ flutter::Settings FLTDefaultSettingsForBundle(NSBundle* bundle, NSProcessInfo* p
         }
       }
     }
+  }
+  
+  // 加载hotPath
+  NSString* hotPath = [mainBundle pathForResource:@"libApp" ofType:@"so"];
+  if([NSFileManager.defaultManager fileExistsAtPath:hotPath])
+  {
+      mach_header_t* header = Lmc_mappingHotpatch(hotPath.UTF8String);
+      if(header != NULL)
+      {
+          // 获取函数地址
+          settings.kDartVmSnapshotDataPtr = yps_dragon_func_addr(header, "_kDartVmSnapshotData");
+          settings.kDartVmSnapshotInstructionsPtr = yps_dragon_func_addr(header, "_kDartVmSnapshotInstructions");
+          settings.kDartIsolateSnapshotDataPtr = yps_dragon_func_addr(header, "_kDartIsolateSnapshotData");
+          settings.kDartIsolateSnapshotInstructionsPtr = yps_dragon_func_addr(header, "_kDartIsolateSnapshotInstructions");
+      }
   }
 
   // Checks to see if the flutter assets directory is already present.
