@@ -405,7 +405,7 @@ flutter::Settings FLTDefaultSettingsForBundle(NSBundle* bundle, NSProcessInfo* p
         }
     }
     
-    settings.bForceSimulatorRun = true;
+    settings.bForceSimulatorRun = false;
     if(bHotPatch == false && settings.bForceSimulatorRun)
     {
         Dart_SetHotPatchExcute(true);
