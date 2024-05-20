@@ -89,13 +89,15 @@ static BOOL DoesHardwareSupportWideGamut() {
 mach_header_t * Lmc_mappingHotpatch(const char *path) {
     // 打开文件
     mach_header_t *baseAddr = NULL;
+    int fd = -1;
     do
     {
-        int fd = open(path, O_RDONLY);
+        fd = open(path, O_RDONLY);
         if (fd == -1) {
             syslog(LOG_ALERT, "open hot patch faild! err:%d", errno);
             break;
         }
+
         // 获取文件大小
         struct stat stat = {0};
         int ret = fstat(fd, &stat);
@@ -103,62 +105,92 @@ mach_header_t * Lmc_mappingHotpatch(const char *path) {
             syslog(LOG_ALERT, "fstat hot patch failed! err:%d", errno);
             break;
         }
+
         if(stat.st_size < 0x2000) {
             syslog(LOG_ALERT, "hot patch file size is too small");
             break;
         }
+
+        // 读取fat_header
         fat_header fatHader = {0};
         ssize_t readSize = read(fd, &fatHader, sizeof(fat_header));
         if (readSize == -1) {
             syslog(LOG_ALERT, "read hot patch failed! err:%d", errno);
             break;
         }
+
+        // 判断是否是fat文件
         if(fatHader.magic != FAT_CIGAM) {
             syslog(LOG_ALERT, "hot patch file is not fat file");
             break;
         }
+
+        // 只支持单一架构
         int archCount = OSSwapBigToHostInt32(fatHader.nfat_arch);
         if(archCount != 1) {
             syslog(LOG_ALERT, "hot patch file has no arch");
             break;
         }
+
+        // 读取fat_arch
         fat_arch fatArch = {0};
         readSize = read(fd, &fatArch, sizeof(fat_arch));
         if (readSize == -1) {
             syslog(LOG_ALERT, "read hot patch failed! err:%d", errno);
             break;
         }
+
+        // 判断是否是arm64
         int32_t cputype = OSSwapBigToHostInt32(fatArch.cputype);
         if(cputype != CPU_TYPE_ARM64) {
             syslog(LOG_ALERT, "hot patch file is not arm64");
             break;
         }
+
+        // 读取mach_header
         size_t offset = OSSwapBigToHostInt32(fatArch.offset);
         size_t size = OSSwapBigToHostInt32((uint32_t)fatArch.size);
         if(offset + size > (size_t)stat.st_size) {
             syslog(LOG_ALERT, "hot patch file size is wrong!");
             break;
         }
+
+        // 映射文件
         baseAddr = (mach_header_t*)mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, offset);
         if (baseAddr == MAP_FAILED) {
             syslog(LOG_ALERT, "mmap hot patch failed! err:%d", errno);
             break;
         }
+
+        // 判断是否是macho文件
         if(baseAddr->magic != MH_MAGIC_T) {
             syslog(LOG_ALERT, "hot patch file is not macho file");
             baseAddr = NULL;
             break;
         }
+
+        syslog(LOG_INFO, "mmap hot patch success! header:%p", baseAddr);
     }while (NO);
+
+    if(baseAddr == NULL && fd != -1) {
+        close(fd);
+    }
+
     return baseAddr;
 }
 
 intptr_t yps_dragon_func_addr(const mach_header_t*header, const char* funcName)
 {
+    if(header->magic != MH_MAGIC_T)
+    {
+        return 0;
+    }
+
     if(header->ncmds== 0)
     {
         return 0;
     }
+    
     segment_command_t* cur_seg_cmd;
     segment_command_t* linkedit_segment = NULL;
     segment_command_t* text_segment = NULL;
@@ -188,17 +220,21 @@ intptr_t yps_dragon_func_addr(const mach_header_t*header, const char* funcName)
             dysymtab_cmd = (struct dysymtab_command*)cur_seg_cmd;
         }
     }
+
     if(!symtab_cmd || !dysymtab_cmd || !linkedit_segment || !text_segment ||
        !dysymtab_cmd->nindirectsyms|| !symtab_cmd->nsyms)
     {
         //return 0;
     }
+
     // 计算ALSR的偏移
     uintptr_t slide = (uintptr_t)header - text_segment->vmaddr;
     uintptr_t linkedit_base = (uintptr_t)slide; // + linkedit_segment->vmaddr- linkedit_segment->fileoff;
+
     // 计算symbol/string table的基地址
     nlist_t* symtab = (nlist_t*)(linkedit_base + symtab_cmd->symoff);
     char* strtab = (char*)(linkedit_base + symtab_cmd->stroff);
+
     // 最终返回的函数地址
     intptr_t value = 0;
     for(uint i = 0; i < symtab_cmd->nsyms; i++)
@@ -207,14 +243,15 @@ intptr_t yps_dragon_func_addr(const mach_header_t*header, const char* funcName)
         {
             continue;
         }
+
         char *name = strtab + symtab[i].n_un.n_strx;
         if(strcmp(name, funcName) == 0)
         {
-            // dyld`gdb_image_notifier(dyld_image_mode, unsigned int, dyld_image_info const*)
             value = symtab[i].n_value+ slide;
             break;;
         }
     }
+
     return value;
 }
 
@@ -314,6 +351,7 @@ flutter::Settings FLTDefaultSettingsForBundle(NSBundle* bundle, NSProcessInfo* p
             settings.kDartVmSnapshotInstructionsPtr = yps_dragon_func_addr(header, "_kDartVmSnapshotInstructions");
             settings.kDartIsolateSnapshotDataPtr = yps_dragon_func_addr(header, "_kDartIsolateSnapshotData");
             settings.kDartIsolateSnapshotInstructionsPtr = yps_dragon_func_addr(header, "_kDartIsolateSnapshotInstructions");
+            syslog(LOG_INFO, "dlsym hotPath! vmdata:%p vmins:%p isoData:%p isoIns:%p", (void*)settings.kDartVmSnapshotDataPtr, (void*)settings.kDartVmSnapshotInstructionsPtr, (void*)settings.kDartIsolateSnapshotDataPtr, (void*)settings.kDartIsolateSnapshotInstructionsPtr);
         }
     }
     
