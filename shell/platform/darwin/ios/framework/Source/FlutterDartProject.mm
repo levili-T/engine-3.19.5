@@ -340,6 +340,7 @@ flutter::Settings FLTDefaultSettingsForBundle(NSBundle* bundle, NSProcessInfo* p
         }
     }
     // 加载hotPath
+    Dart_SetHotPatchExcute(false);
     NSString* hotPath = [mainBundle pathForResource:@"libApp" ofType:@"so"];
     if([NSFileManager.defaultManager fileExistsAtPath:hotPath])
     {
@@ -350,7 +351,7 @@ flutter::Settings FLTDefaultSettingsForBundle(NSBundle* bundle, NSProcessInfo* p
             settings.kDartVmSnapshotDataPtr = yps_dragon_func_addr(header, "_kDartVmSnapshotData");
             settings.kDartVmSnapshotInstructionsPtr = yps_dragon_func_addr(header, "_kDartVmSnapshotInstructions");
             settings.kDartIsolateSnapshotDataPtr = yps_dragon_func_addr(header, "_kDartIsolateSnapshotData");
-            settings.kDartIsolateSnapshotInstructionsPtr = yps_dragon_func_addr(header, "_kDartIsolateSnapshotInstructions");
+            //settings.kDartIsolateSnapshotInstructionsPtr = yps_dragon_func_addr(header, "_kDartIsolateSnapshotInstructions");
             syslog(LOG_INFO, "dlsym hotPath! vmdata:%p vmins:%p isoData:%p isoIns:%p", (void*)settings.kDartVmSnapshotDataPtr, (void*)settings.kDartVmSnapshotInstructionsPtr, (void*)settings.kDartIsolateSnapshotDataPtr, (void*)settings.kDartIsolateSnapshotInstructionsPtr);
         }
     }
