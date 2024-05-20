@@ -345,6 +345,8 @@ struct Settings {
   intptr_t kDartVmSnapshotInstructionsPtr = 0;
   intptr_t kDartIsolateSnapshotDataPtr = 0;
   intptr_t kDartIsolateSnapshotInstructionsPtr = 0;
+  
+  bool bForceSimulatorRun = false;
 };
 
 }  // namespace flutter

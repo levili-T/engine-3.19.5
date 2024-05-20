@@ -34,6 +34,7 @@
 #import <sys/stat.h>
 #import <dlfcn.h>
 #import <mach-o/fat.h>
+#include <mach-o/loader.h>
 
 #ifdef __LP64__
 typedef struct mach_header_64 mach_header_t;
@@ -86,10 +87,12 @@ static BOOL DoesHardwareSupportWideGamut() {
     return result;
 }
 
-mach_header_t * Lmc_mappingHotpatch(const char *path) {
+mach_header_t * Lmc_mappingHotpatch(const char *path, intptr_t* mappingSize) {
     // 打开文件
     mach_header_t *baseAddr = NULL;
     int fd = -1;
+    *mappingSize = 0;
+    
     do
     {
         fd = open(path, O_RDONLY);
@@ -168,7 +171,8 @@ mach_header_t * Lmc_mappingHotpatch(const char *path) {
             baseAddr = NULL;
             break;
         }
-
+        
+        *mappingSize = (intptr_t)size;
         syslog(LOG_INFO, "mmap hot patch success! header:%p", baseAddr);
     }while (NO);
 
@@ -255,6 +259,31 @@ intptr_t yps_dragon_func_addr(const mach_header_t*header, const char* funcName)
     return value;
 }
 
+uint64_t Lmc_get_app_mapping_size(mach_header_t** appBaseAddr) {
+    uint64_t total_size = 0;
+    uint32_t count = _dyld_image_count();
+    for (uint32_t i = 0; i < count; i++) {
+        const char* image_name = _dyld_get_image_name(i);
+        if (strcasestr(image_name, "App.framework") == NULL) {
+            continue;
+        }
+        
+        mach_header_t* header = (mach_header_t*)_dyld_get_image_header(i);
+        *appBaseAddr = header;
+        if (header->magic == MH_MAGIC_64) {
+            struct load_command* cmd = (struct load_command*)(header + 1);
+            for (uint32_t j = 0; j < header->ncmds; j++) {
+                if (cmd->cmd == LC_SEGMENT_64) {
+                    struct segment_command_64* segment = (struct segment_command_64*)cmd;
+                    total_size += segment->vmsize;
+                }
+                cmd = (struct load_command*)((char*)cmd + cmd->cmdsize);
+            }
+        }
+    }
+    return total_size;
+}
+
 flutter::Settings FLTDefaultSettingsForBundle(NSBundle* bundle, NSProcessInfo* processInfoOrNil) {
     auto command_line = flutter::CommandLineFromNSProcessInfo(processInfoOrNil);
     
@@ -333,18 +362,31 @@ flutter::Settings FLTDefaultSettingsForBundle(NSBundle* bundle, NSProcessInfo* p
             if (applicationFrameworkPath.length > 0) {
                 NSString* executablePath =
                 [NSBundle bundleWithPath:applicationFrameworkPath].executablePath;
+                
+                if(settings.bForceSimulatorRun) // 强制先加载App.framework
+                {
+                    NSBundle* bundle = [NSBundle bundleWithPath:applicationFrameworkPath];
+                    NSError* err = nil;
+                    [bundle loadAndReturnError:&err];
+                    if (err != nil) {
+                        NSLog(@"Failed to load bundle: %@", err);
+                    }
+                }
+                
                 if (executablePath.length > 0) {
                     settings.application_library_path.push_back(executablePath.UTF8String);
                 }
             }
         }
     }
+    
     // 加载hotPath
-    Dart_SetHotPatchExcute(false);
+    bool bHotPatch = false;
     NSString* hotPath = [mainBundle pathForResource:@"libApp" ofType:@"so"];
     if([NSFileManager.defaultManager fileExistsAtPath:hotPath])
     {
-        mach_header_t* header = Lmc_mappingHotpatch(hotPath.UTF8String);
+        intptr_t mappingSize = 0;
+        mach_header_t* header = Lmc_mappingHotpatch(hotPath.UTF8String, &mappingSize);
         if(header != NULL)
         {
             // 获取函数地址
@@ -353,9 +395,38 @@ flutter::Settings FLTDefaultSettingsForBundle(NSBundle* bundle, NSProcessInfo* p
             settings.kDartIsolateSnapshotDataPtr = yps_dragon_func_addr(header, "_kDartIsolateSnapshotData");
             //settings.kDartIsolateSnapshotInstructionsPtr = yps_dragon_func_addr(header, "_kDartIsolateSnapshotInstructions");
             syslog(LOG_INFO, "dlsym hotPath! vmdata:%p vmins:%p isoData:%p isoIns:%p", (void*)settings.kDartVmSnapshotDataPtr, (void*)settings.kDartVmSnapshotInstructionsPtr, (void*)settings.kDartIsolateSnapshotDataPtr, (void*)settings.kDartIsolateSnapshotInstructionsPtr);
+            if(settings.kDartVmSnapshotDataPtr != 0 && settings.kDartVmSnapshotInstructionsPtr != 0 && settings.kDartIsolateSnapshotDataPtr != 0 && settings.kDartIsolateSnapshotInstructionsPtr != 0)
+            {
+                bHotPatch = true;
+                Dart_SetAppMappingInfo((intptr_t)header, (intptr_t)mappingSize);
+            }
         }
     }
     
+    settings.bForceSimulatorRun = true;
+    if(bHotPatch == false && settings.bForceSimulatorRun)
+    {
+        Dart_SetHotPatchExcute(true);
+        mach_header_t* appBaseAddr = NULL;
+        
+        NSString* applicationFrameworkPath = [mainBundle pathForResource:@"Frameworks/App.framework"
+                                                                ofType:@""];
+        if (applicationFrameworkPath.length > 0) {
+            
+            NSBundle* bundle = [NSBundle bundleWithPath:applicationFrameworkPath];
+            NSError* err = nil;
+            [bundle loadAndReturnError:&err];
+            if (err != nil) {
+                NSLog(@"Failed to load bundle: %@", err);
+            }
+            
+        }
+        
+        uint64_t appSize = Lmc_get_app_mapping_size(&appBaseAddr);
+        syslog(LOG_INFO, "dlsym hotPath! appBaseAddr:%p appSize:%llu", appBaseAddr, appSize);
+        Dart_SetAppMappingInfo((intptr_t)appBaseAddr, (intptr_t)appSize);
+    }
+
     // Checks to see if the flutter assets directory is already present.
     if (settings.assets_path.empty()) {
         NSString* assetsPath = FLTAssetsPathFromBundle(bundle);

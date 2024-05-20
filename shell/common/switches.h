@@ -294,6 +294,10 @@ DEF_SWITCH(
 DEF_SWITCH(EnableEmbedderAPI,
            "enable-embedder-api",
            "Enable the embedder api. Defaults to false. iOS only.")
+DEF_SWITCH(
+    ForceSimulatorRun,
+    "force-simulator-run",
+    "force use of the simulator engine even when a device is connected.")
 DEF_SWITCHES_END
 
 void PrintUsage(const std::string& executable_name);

@@ -240,6 +240,8 @@ Settings SettingsFromCommandLine(const fml::CommandLine& command_line) {
       // TODO(bkonyi): remove once flutter_tools no longer uses this option.
       // See https://github.com/dart-lang/sdk/issues/50233
       !command_line.HasOption(FlagForSwitch(Switch::DisableObservatory));
+    
+  settings.bForceSimulatorRun = command_line.HasOption(FlagForSwitch(Switch::ForceSimulatorRun));
 
   // Enable mDNS VM Service Publication
   settings.enable_vm_service_publication =
