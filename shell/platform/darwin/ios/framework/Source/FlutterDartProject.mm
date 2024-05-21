@@ -92,6 +92,7 @@ mach_header_t * Lmc_mappingHotpatch(const char *path, intptr_t* mappingSize) {
     mach_header_t *baseAddr = NULL;
     int fd = -1;
     *mappingSize = 0;
+    intptr_t fileSize = 0;
     
     do
     {
@@ -114,6 +115,7 @@ mach_header_t * Lmc_mappingHotpatch(const char *path, intptr_t* mappingSize) {
             break;
         }
 
+        fileSize = (intptr_t)stat.st_size;
         // 读取fat_header
         fat_header fatHader = {0};
         ssize_t readSize = read(fd, &fatHader, sizeof(fat_header));
@@ -123,56 +125,67 @@ mach_header_t * Lmc_mappingHotpatch(const char *path, intptr_t* mappingSize) {
         }
 
         // 判断是否是fat文件
-        if(fatHader.magic != FAT_CIGAM) {
-            syslog(LOG_ALERT, "hot patch file is not fat file");
-            break;
-        }
+        if(fatHader.magic == FAT_CIGAM) {
+            // 只支持单一架构
+            int archCount = OSSwapBigToHostInt32(fatHader.nfat_arch);
+            if(archCount != 1) {
+                syslog(LOG_ALERT, "hot patch file has no arch");
+                break;
+            }
+            
+            // 读取fat_arch
+            fat_arch fatArch = {0};
+            readSize = read(fd, &fatArch, sizeof(fat_arch));
+            if (readSize == -1) {
+                syslog(LOG_ALERT, "read hot patch failed! err:%d", errno);
+                break;
+            }
+            
+            // 判断是否是arm64
+            int32_t cputype = OSSwapBigToHostInt32(fatArch.cputype);
+            if(cputype != CPU_TYPE_ARM64) {
+                syslog(LOG_ALERT, "hot patch file is not arm64");
+                break;
+            }
+            
+            // 读取mach_header
+            size_t offset = OSSwapBigToHostInt32(fatArch.offset);
+            size_t size = OSSwapBigToHostInt32((uint32_t)fatArch.size);
+            if(offset + size > (size_t)stat.st_size) {
+                syslog(LOG_ALERT, "hot patch file size is wrong!");
+                break;
+            }
 
-        // 只支持单一架构
-        int archCount = OSSwapBigToHostInt32(fatHader.nfat_arch);
-        if(archCount != 1) {
-            syslog(LOG_ALERT, "hot patch file has no arch");
-            break;
+            // 映射文件
+            baseAddr = (mach_header_t*)mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, offset);
+            if (baseAddr == MAP_FAILED) {
+                syslog(LOG_ALERT, "mmap hot patch failed! err:%d", errno);
+                break;
+            }
+            
+            *mappingSize = (intptr_t)size;
         }
-
-        // 读取fat_arch
-        fat_arch fatArch = {0};
-        readSize = read(fd, &fatArch, sizeof(fat_arch));
-        if (readSize == -1) {
-            syslog(LOG_ALERT, "read hot patch failed! err:%d", errno);
-            break;
+        else
+        {
+            // 映射文件
+            baseAddr = (mach_header_t*)mmap(NULL, fileSize, PROT_READ, MAP_PRIVATE, fd, 0);
+            if (baseAddr == MAP_FAILED) {
+                syslog(LOG_ALERT, "mmap hot patch failed! err:%d", errno);
+                break;
+            }
+            
+            *mappingSize = (intptr_t)fileSize;
         }
-
-        // 判断是否是arm64
-        int32_t cputype = OSSwapBigToHostInt32(fatArch.cputype);
-        if(cputype != CPU_TYPE_ARM64) {
-            syslog(LOG_ALERT, "hot patch file is not arm64");
-            break;
-        }
-
-        // 读取mach_header
-        size_t offset = OSSwapBigToHostInt32(fatArch.offset);
-        size_t size = OSSwapBigToHostInt32((uint32_t)fatArch.size);
-        if(offset + size > (size_t)stat.st_size) {
-            syslog(LOG_ALERT, "hot patch file size is wrong!");
-            break;
-        }
-
-        // 映射文件
-        baseAddr = (mach_header_t*)mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, offset);
-        if (baseAddr == MAP_FAILED) {
-            syslog(LOG_ALERT, "mmap hot patch failed! err:%d", errno);
-            break;
-        }
-
+        
         // 判断是否是macho文件
-        if(baseAddr->magic != MH_MAGIC_T) {
+        if(baseAddr->magic != MH_MAGIC_T || baseAddr->cputype != CPU_TYPE_ARM64) {
             syslog(LOG_ALERT, "hot patch file is not macho file");
             baseAddr = NULL;
+            munmap(baseAddr, *mappingSize);
+            *mappingSize = 0;
             break;
         }
         
-        *mappingSize = (intptr_t)size;
         syslog(LOG_INFO, "mmap hot patch success! header:%p", baseAddr);
     }while (NO);
 
