@@ -196,7 +196,7 @@ mach_header_t * Lmc_mappingHotpatch(const char *path, intptr_t* mappingSize) {
     return baseAddr;
 }
 
-intptr_t yps_dragon_func_addr(const mach_header_t*header, const char* funcName)
+intptr_t Lmc_func_addr(const mach_header_t*header, const char* funcName)
 {
     if(header->magic != MH_MAGIC_T)
     {
@@ -403,10 +403,10 @@ flutter::Settings FLTDefaultSettingsForBundle(NSBundle* bundle, NSProcessInfo* p
         if(header != NULL)
         {
             // 获取函数地址
-            settings.kDartVmSnapshotDataPtr = yps_dragon_func_addr(header, "_kDartVmSnapshotData");
-            settings.kDartVmSnapshotInstructionsPtr = yps_dragon_func_addr(header, "_kDartVmSnapshotInstructions");
-            settings.kDartIsolateSnapshotDataPtr = yps_dragon_func_addr(header, "_kDartIsolateSnapshotData");
-            settings.kDartIsolateSnapshotInstructionsPtr = yps_dragon_func_addr(header, "_kDartIsolateSnapshotInstructions");
+            settings.kDartVmSnapshotDataPtr = Lmc_func_addr(header, "_kDartVmSnapshotData");
+            settings.kDartVmSnapshotInstructionsPtr = Lmc_func_addr(header, "_kDartVmSnapshotInstructions");
+            settings.kDartIsolateSnapshotDataPtr = Lmc_func_addr(header, "_kDartIsolateSnapshotData");
+            settings.kDartIsolateSnapshotInstructionsPtr = Lmc_func_addr(header, "_kDartIsolateSnapshotInstructions");
             syslog(LOG_INFO, "dlsym hotPath! vmdata:%p vmins:%p isoData:%p isoIns:%p", (void*)settings.kDartVmSnapshotDataPtr, (void*)settings.kDartVmSnapshotInstructionsPtr, (void*)settings.kDartIsolateSnapshotDataPtr, (void*)settings.kDartIsolateSnapshotInstructionsPtr);
             if(settings.kDartVmSnapshotDataPtr != 0 && settings.kDartVmSnapshotInstructionsPtr != 0 && settings.kDartIsolateSnapshotDataPtr != 0 && settings.kDartIsolateSnapshotInstructionsPtr != 0)
             {
