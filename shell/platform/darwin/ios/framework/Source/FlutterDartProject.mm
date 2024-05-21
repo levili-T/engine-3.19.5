@@ -370,22 +370,10 @@ flutter::Settings FLTDefaultSettingsForBundle(NSBundle* bundle, NSProcessInfo* p
         // In case the application bundle is still not specified, look for the App.framework in the
         // Frameworks directory.
         if (settings.application_library_path.empty()) {
-            NSString* applicationFrameworkPath = [mainBundle pathForResource:@"Frameworks/App.framework"
-                                                                      ofType:@""];
+            NSString* applicationFrameworkPath = [mainBundle pathForResource:@"Frameworks/App.framework" ofType:@""];
             if (applicationFrameworkPath.length > 0) {
                 NSString* executablePath =
                 [NSBundle bundleWithPath:applicationFrameworkPath].executablePath;
-                
-                if(settings.bForceSimulatorRun) // 强制先加载App.framework
-                {
-                    NSBundle* bundle = [NSBundle bundleWithPath:applicationFrameworkPath];
-                    NSError* err = nil;
-                    [bundle loadAndReturnError:&err];
-                    if (err != nil) {
-                        NSLog(@"Failed to load bundle: %@", err);
-                    }
-                }
-                
                 if (executablePath.length > 0) {
                     settings.application_library_path.push_back(executablePath.UTF8String);
                 }
