@@ -30,7 +30,8 @@ const char* DartSnapshot::kIsolateInstructionsSymbol =
 #if !DART_SNAPSHOT_STATIC_LINK
 
 static std::unique_ptr<const fml::Mapping> GetFileMapping(
-    const std::string& path, bool executable) {
+    const std::string& path,
+    bool executable) {
   if (executable) {
     return fml::FileMapping::CreateReadExecute(path);
   } else {
@@ -53,7 +54,8 @@ static std::shared_ptr<const fml::Mapping> SearchMapping(
     const MappingCallback& embedder_mapping_callback,
     const std::string& file_path,
     const std::vector<std::string>& native_library_path,
-    const char* native_library_symbol_name, const Settings& settings,
+    const char* native_library_symbol_name,
+    const Settings& settings,
     bool is_executable) {
   // Ask the embedder. There is no fallback as we expect the embedders (via
   // their embedding APIs) to just specify the mappings directly.
@@ -261,9 +263,13 @@ DartSnapshot::DartSnapshot(std::shared_ptr<const fml::Mapping> data,
 
 DartSnapshot::~DartSnapshot() = default;
 
-bool DartSnapshot::IsValid() const { return static_cast<bool>(data_); }
+bool DartSnapshot::IsValid() const {
+  return static_cast<bool>(data_);
+}
 
-bool DartSnapshot::IsValidForAOT() const { return data_ && instructions_; }
+bool DartSnapshot::IsValidForAOT() const {
+  return data_ && instructions_;
+}
 
 const uint8_t* DartSnapshot::GetDataMapping() const {
   return data_ ? data_->GetMapping() : nullptr;

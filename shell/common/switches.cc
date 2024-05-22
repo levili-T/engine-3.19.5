@@ -179,7 +179,8 @@ static bool IsAllowedDartVMFlag(const std::string& flag) {
 }
 
 template <typename T>
-static bool GetSwitchValue(const fml::CommandLine& command_line, Switch sw,
+static bool GetSwitchValue(const fml::CommandLine& command_line,
+                           Switch sw,
                            T* result) {
   std::string switch_string;
 
@@ -198,7 +199,8 @@ static bool GetSwitchValue(const fml::CommandLine& command_line, Switch sw,
 }
 
 std::unique_ptr<fml::Mapping> GetSymbolMapping(
-    const std::string& symbol_prefix, const std::string& native_lib_path) {
+    const std::string& symbol_prefix,
+    const std::string& native_lib_path) {
   const uint8_t* mapping = nullptr;
   intptr_t size;
 
