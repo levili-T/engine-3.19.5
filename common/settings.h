@@ -73,12 +73,10 @@ class FrameTiming {
 using TaskObserverAdd =
     std::function<void(intptr_t /* key */, fml::closure /* callback */)>;
 using TaskObserverRemove = std::function<void(intptr_t /* key */)>;
-using UnhandledExceptionCallback =
-    std::function<bool(const std::string& /* error */,
-                       const std::string& /* stack trace */)>;
-using LogMessageCallback =
-    std::function<void(const std::string& /* tag */,
-                       const std::string& /* message */)>;
+using UnhandledExceptionCallback = std::function<bool(
+    const std::string& /* error */, const std::string& /* stack trace */)>;
+using LogMessageCallback = std::function<void(
+    const std::string& /* tag */, const std::string& /* message */)>;
 
 // TODO(26783): Deprecate all the "path" struct members in favor of the
 // callback that generates the mapping from these paths.
@@ -345,7 +343,7 @@ struct Settings {
   intptr_t kDartVmSnapshotInstructionsPtr = 0;
   intptr_t kDartIsolateSnapshotDataPtr = 0;
   intptr_t kDartIsolateSnapshotInstructionsPtr = 0;
-  
+
   bool bForceSimulatorRun = false;
 };
 
