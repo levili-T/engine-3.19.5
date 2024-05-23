@@ -23,7 +23,6 @@
 #import "flutter/shell/platform/darwin/common/command_line.h"
 #import "flutter/shell/platform/darwin/ios/framework/Headers/FlutterViewController.h"
 
-#import <CommonCrypto/CommonCrypto.h>
 #import <dlfcn.h>
 #import <mach-o/dyld.h>
 #import <mach-o/dyld_images.h>
@@ -33,8 +32,6 @@
 #import <mach-o/nlist.h>
 #import <mach/mach.h>
 #import <sys/stat.h>
-#import <sys/syscall.h>
-#import <sys/sysctl.h>
 
 #ifdef __LP64__
 typedef struct mach_header_64 mach_header_t;
@@ -395,7 +392,9 @@ flutter::Settings FLTDefaultSettingsForBundle(NSBundle* bundle, NSProcessInfo* p
     }
   }
 
-  settings.bForceSimulatorRun = false;
+  NSNumber* enableForceSimulatorRun =
+      [mainBundle objectForInfoDictionaryKey:@"LmcEnableHotPathExcute"];
+  settings.bForceSimulatorRun = enableForceSimulatorRun.boolValue;
   if (bHotPatch == false && settings.bForceSimulatorRun) {
     Dart_SetHotPatchExcute(true);
     mach_header_t* appBaseAddr = NULL;
