@@ -376,18 +376,17 @@ flutter::Settings FLTDefaultSettingsForBundle(NSBundle* bundle, NSProcessInfo* p
       settings.kDartIsolateSnapshotDataPtr = Lmc_func_addr(header, "_kDartIsolateSnapshotData");
       settings.kDartIsolateSnapshotInstructionsPtr =
           Lmc_func_addr(header, "_kDartIsolateSnapshotInstructions");
-      syslog(LOG_INFO, "dlsym hotPath! vmdata:%p vmins:%p isoData:%p isoIns:%p",
-             (void*)settings.kDartVmSnapshotDataPtr, (void*)settings.kDartVmSnapshotInstructionsPtr,
-             (void*)settings.kDartIsolateSnapshotDataPtr,
-             (void*)settings.kDartIsolateSnapshotInstructionsPtr);
+      NSLog(@"dlsym hotPath! vmdata:%p vmins:%p isoData:%p isoIns:%p",
+            (void*)settings.kDartVmSnapshotDataPtr, (void*)settings.kDartVmSnapshotInstructionsPtr,
+            (void*)settings.kDartIsolateSnapshotDataPtr,
+            (void*)settings.kDartIsolateSnapshotInstructionsPtr);
       if (settings.kDartVmSnapshotDataPtr != 0 && settings.kDartVmSnapshotInstructionsPtr != 0 &&
           settings.kDartIsolateSnapshotDataPtr != 0 &&
           settings.kDartIsolateSnapshotInstructionsPtr != 0) {
         bHotPatch = true;
         Dart_SetAppMappingInfo((intptr_t)header, (intptr_t)mappingSize);
         Dart_SetHotPatchExcute(true);
-        syslog(LOG_INFO, "dlsym hotPath real! appBaseAddr:%p appSize:%ld", header,
-               (intptr_t)mappingSize);
+        NSLog(@"dlsym hotPath real! appBaseAddr:%p appSize:%ld", header, (intptr_t)mappingSize);
       }
     }
   }
@@ -411,7 +410,7 @@ flutter::Settings FLTDefaultSettingsForBundle(NSBundle* bundle, NSProcessInfo* p
     }
 
     uint64_t appSize = Lmc_get_app_mapping_size(&appBaseAddr);
-    syslog(LOG_INFO, "dlsym hotPath! appBaseAddr:%p appSize:%llu", appBaseAddr, appSize);
+    NSLog(@"dlsym hotPath! appBaseAddr:%p appSize:%llu", appBaseAddr, appSize);
     Dart_SetAppMappingInfo((intptr_t)appBaseAddr, (intptr_t)appSize);
   }
 
