@@ -277,8 +277,9 @@ uint64_t Lmc_get_app_mapping_size(mach_header_t** appBaseAddr) {
   return total_size;
 }
 
-void Lmc_loadHotPatch(const char* path, flutter::Settings& settings) {
+bool Lmc_loadHotPatch(const char* path, flutter::Settings& settings) {
   intptr_t mappingSize = 0;
+  bool ret = false;
   mach_header_t* header = Lmc_mappingHotpatch(path, &mappingSize);
   if (header != NULL) {
     // 获取函数地址
@@ -296,10 +297,13 @@ void Lmc_loadHotPatch(const char* path, flutter::Settings& settings) {
         settings.kDartIsolateSnapshotInstructionsPtr != 0) {
       Dart_SetAppMappingInfo((intptr_t)header, (intptr_t)mappingSize);
       Dart_SetHotPatchExcute(true);
-      NSLog(@"dlsym hotPath! path:%s appBaseAddr:%p appSize:%ld", path, header,
+      NSLog(@"dlsym hotPath success!path:%s appBaseAddr:%p appSize:%ld", path, header,
             (intptr_t)mappingSize);
+      ret = true;
     }
   }
+
+  return ret;
 }
 
 flutter::Settings FLTDefaultSettingsForBundle(NSBundle* bundle, NSProcessInfo* processInfoOrNil) {
@@ -391,7 +395,7 @@ flutter::Settings FLTDefaultSettingsForBundle(NSBundle* bundle, NSProcessInfo* p
   bool bHotPatch = false;
   NSString* hotPath = [mainBundle pathForResource:@"libApp" ofType:@"so"];
   if ([NSFileManager.defaultManager fileExistsAtPath:hotPath]) {
-    Lmc_loadHotPatch(hotPath.UTF8String, settings);
+    bHotPatch = Lmc_loadHotPatch(hotPath.UTF8String, settings);
   }
 
   NSNumber* enableForceSimulatorRun =
