@@ -401,7 +401,9 @@ flutter::Settings FLTDefaultSettingsForBundle(NSBundle* bundle, NSProcessInfo* p
   NSNumber* enableForceSimulatorRun =
       [mainBundle objectForInfoDictionaryKey:@"LmcEnableHotPathExcute"];
   settings.bForceSimulatorRun = enableForceSimulatorRun.boolValue;
-  if (bHotPatch == false && settings.bForceSimulatorRun) {
+  NSUserDefaults* defaults = [NSUserDefaults standardUserDefaults];
+  bool bVirtualEnable = [defaults boolForKey:@"flutter.LmcExcuteVirtualMachine"];
+  if (bHotPatch == false && settings.bForceSimulatorRun && bVirtualEnable) {
     NSString* applicationFrameworkPath = [mainBundle pathForResource:@"Frameworks/App.framework/App"
                                                               ofType:@""];
     Lmc_loadHotPatch(applicationFrameworkPath.UTF8String, settings);
