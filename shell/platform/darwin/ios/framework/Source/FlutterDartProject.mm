@@ -306,6 +306,40 @@ bool Lmc_loadHotPatch(const char* path, flutter::Settings& settings) {
   return ret;
 }
 
+NSString* Lmc_curHotPatchPath(NSBundle* mainBundle) {
+  NSString* hotPath = nil;
+  do {
+    NSString* applicationSupportPath = [NSSearchPathForDirectoriesInDomains(
+        NSApplicationSupportDirectory, NSUserDomainMask, YES) firstObject];
+    if (applicationSupportPath.length == 0) {
+      NSLog(@"Failed to find application support path!");
+      break;
+    }
+
+    NSString* hotPathDir = [applicationSupportPath stringByAppendingPathComponent:@"Fix"];
+
+    NSString* version = [mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
+    if (version.length == 0) {
+      NSLog(@"Failed to find version!");
+      break;
+    }
+
+    NSString* versionDir = [hotPathDir stringByAppendingPathComponent:version];
+
+    NSUserDefaults* defaults = [NSUserDefaults standardUserDefaults];
+    NSString* patchHash = [defaults stringForKey:@"flutter.LmcPatchCurHash"];
+    if (patchHash.length == 0) {
+      NSLog(@"patch hash is empty!");
+      break;
+    }
+
+    NSString* curPatchDir = [versionDir stringByAppendingPathComponent:patchHash];
+    hotPath = [curPatchDir stringByAppendingPathComponent:@"libApp.so"];
+  } while (NO);
+
+  return hotPath;
+}
+
 flutter::Settings FLTDefaultSettingsForBundle(NSBundle* bundle, NSProcessInfo* processInfoOrNil) {
   auto command_line = flutter::CommandLineFromNSProcessInfo(processInfoOrNil);
 
@@ -393,8 +427,9 @@ flutter::Settings FLTDefaultSettingsForBundle(NSBundle* bundle, NSProcessInfo* p
 
   // 加载hotPath
   bool bHotPatch = false;
-  NSString* hotPath = [mainBundle pathForResource:@"libApp" ofType:@"so"];
-  if ([NSFileManager.defaultManager fileExistsAtPath:hotPath]) {
+
+  NSString* hotPath = Lmc_curHotPatchPath(mainBundle);
+  if (hotPath.length > 0 && [NSFileManager.defaultManager fileExistsAtPath:hotPath]) {
     bHotPatch = Lmc_loadHotPatch(hotPath.UTF8String, settings);
   }
 

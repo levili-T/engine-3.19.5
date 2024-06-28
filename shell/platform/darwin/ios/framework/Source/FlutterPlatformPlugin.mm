@@ -149,9 +149,16 @@ static void SetStatusBarStyleForSharedApplication(UIStatusBarStyle style) {
   } else if ([method isEqualToString:@"Share.invoke"]) {
     [self showShareViewController:args];
     result(nil);
+  } else if ([method isEqualToString:@"LMCHotPatch.isExcute"]) {
+    bool bExcute = [self isLMCHotPatchExcute];
+    result(@(bExcute));
   } else {
     result(FlutterMethodNotImplemented);
   }
+}
+
+- (bool)isLMCHotPatchExcute {
+  return Dart_GetHotPatchExcute();
 }
 
 - (void)showShareViewController:(NSString*)content {
